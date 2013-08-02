@@ -3,11 +3,11 @@ libext2fs: handle inline data in dir iterator function
 From: Zheng Liu <wenqing.lz@taobao.com>
 
 Inline_data is handled in dir iterator because a lot of commands use
-this function to traverse directory entries debugfs.  We need to
+this function to traverse directory entries in debugfs.  We need to
 handle inline_data individually because inline_data is saved in two
-places.  One is in i_block, and another is in ibody extend attribute.
+places.  One is in i_block, and another is in ibody extended attribute.
 
-After adding this commit, the following commands in debugfs can
+After applied this commit, the following commands in debugfs can
 support the inline_data feature:
 	- ncheck
 	- chroot
@@ -17,21 +17,12 @@ support the inline_data feature:
 	- link*
 	- unlink
 
-* If inline_data doesn't expand to ibody extend attribute, link command will
-  allocate a new block for this inode instead of using extend attribute when we
-  exhaust all space of i_block.
+* If inline_data doesn't expand to ibody extended attribute, link
+  command will allocate a new block for this inode instead of using
+  extend attribute when we exhaust all space of i_block.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/dir_iterate.c  | 102 ++++++++++++++++++++++++++++++++++-
- lib/ext2fs/ext2_err.et.in |   6 +++
- lib/ext2fs/ext2_fs.h      |   7 +++
- lib/ext2fs/ext2fs.h       |  11 ++++
- lib/ext2fs/ext2fsP.h      |   7 +++
- lib/ext2fs/inline_data.c  | 132 ++++++++++++++++++++++++++++++++++++++++++++++
- 6 files changed, 263 insertions(+), 2 deletions(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/dir_iterate.c b/lib/ext2fs/dir_iterate.c
 index 1a4bf5c..7d5b1da 100644
 --- a/lib/ext2fs/dir_iterate.c
@@ -150,7 +141,7 @@ index 1a4bf5c..7d5b1da 100644
 +	return 0;
 +}
 diff --git a/lib/ext2fs/ext2_err.et.in b/lib/ext2fs/ext2_err.et.in
-index d20c6b7..a299561 100644
+index 7e6d6e5..8a19cab 100644
 --- a/lib/ext2fs/ext2_err.et.in
 +++ b/lib/ext2fs/ext2_err.et.in
 @@ -68,6 +68,9 @@ ec	EXT2_ET_MAGIC_EXTENT_HANDLE,
@@ -163,19 +154,19 @@ index d20c6b7..a299561 100644
  ec	EXT2_ET_REV_TOO_HIGH,
  	"Filesystem revision too high"
  
-@@ -476,4 +479,7 @@ ec	EXT2_ET_MMP_CSUM_INVALID,
- ec	EXT2_ET_FILE_EXISTS,
- 	"Ext2 file already exists"
+@@ -479,4 +482,7 @@ ec	EXT2_ET_FILE_EXISTS,
+ ec	EXT2_ET_EXT_ATTR_CURRUPTED,
+ 	"Extended attribute currupted"
  
 +ec	EXT2_ET_BAD_EXTRA_SIZE,
 +	"Bad inode extra isizevalue"
 +
  	end
 diff --git a/lib/ext2fs/ext2_fs.h b/lib/ext2fs/ext2_fs.h
-index 0c0bbcb..4c329d8 100644
+index 0c0bbcb..d49b95c 100644
 --- a/lib/ext2fs/ext2_fs.h
 +++ b/lib/ext2fs/ext2_fs.h
-@@ -906,4 +906,11 @@ struct mmp_struct {
+@@ -906,4 +906,12 @@ struct mmp_struct {
   */
  #define EXT4_MMP_MIN_CHECK_INTERVAL     5
  
@@ -185,17 +176,18 @@ index 0c0bbcb..4c329d8 100644
 +};
 +
 +#define EXT4_MIN_INLINE_DATA_SIZE	((sizeof(__u32) * EXT2_N_BLOCKS))
++#define EXT4_INLINE_DATA_DOTDOT_SIZE	(4)
 +
  #endif	/* _LINUX_EXT2_FS_H */
 diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
-index 23d2dbe..9787298 100644
+index 8c30197..7b05b48 100644
 --- a/lib/ext2fs/ext2fs.h
 +++ b/lib/ext2fs/ext2fs.h
-@@ -1348,6 +1348,17 @@ extern errcode_t ext2fs_get_memalign(unsigned long size,
+@@ -1344,6 +1344,17 @@ extern errcode_t ext2fs_get_memalign(unsigned long size,
  
  /* inline_data.c */
  extern int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino);
-+extern int ext2fs_inline_data_iterate(ext2_filsys fs,
++extern errcode_t ext2fs_inline_data_iterate(ext2_filsys fs,
 +				      ext2_ino_t ino,
 +				      int flags,
 +				      char *block_buf,
@@ -210,10 +202,10 @@ index 23d2dbe..9787298 100644
  /* inode.c */
  extern void ext2fs_free_inode_cache(struct ext2_inode_cache *icache);
 diff --git a/lib/ext2fs/ext2fsP.h b/lib/ext2fs/ext2fsP.h
-index 3de9278..16299c3 100644
+index 3de9278..e86d452 100644
 --- a/lib/ext2fs/ext2fsP.h
 +++ b/lib/ext2fs/ext2fsP.h
-@@ -87,6 +87,13 @@ extern int ext2fs_process_dir_block(ext2_filsys  	fs,
+@@ -87,6 +87,17 @@ extern int ext2fs_process_dir_block(ext2_filsys  	fs,
  				    int			ref_offset,
  				    void		*priv_data);
  
@@ -224,11 +216,15 @@ index 3de9278..16299c3 100644
 +					  struct ext2_inode_large *inode,
 +					  void		*priv_data);
 +
++extern errcode_t ext2fs_inline_data_find(ext2_filsys fs,
++					 struct ext2_inode_large *inode,
++					 struct inline_data *data);
++
  /* Generic numeric progress meter */
  
  struct ext2fs_numeric_progress_struct {
 diff --git a/lib/ext2fs/inline_data.c b/lib/ext2fs/inline_data.c
-index fcf82b5..f7eea7d 100644
+index fcf82b5..922c959 100644
 --- a/lib/ext2fs/inline_data.c
 +++ b/lib/ext2fs/inline_data.c
 @@ -14,10 +14,60 @@
@@ -240,19 +236,17 @@ index fcf82b5..f7eea7d 100644
  #include "ext2fs.h"
  #include "ext2fsP.h"
  
-+#define EXT4_INLINE_DATA_DOTDOT_SIZE	(4)
-+
-+static int ext2fs_iget_extra_inode(ext2_filsys fs, struct ext2_inode_large *inode,
-+				    struct inline_data *data);
 +static void *ext2fs_get_inline_xattr_pos(struct ext2_inode_large *inode,
 +					 struct inline_data *data);
 +
-+static int ext2fs_iget_extra_inode(ext2_filsys fs, struct ext2_inode_large *inode,
-+				    struct inline_data *data)
++errcode_t ext2fs_inline_data_find(ext2_filsys fs,
++				  struct ext2_inode_large *inode,
++				  struct inline_data *data)
 +{
-+	struct ext2_ext_attr_ibody_header *header;
++	errcode_t retval;
++
 +	struct ext2_ext_attr_search s = {
-+		.not_found = -1,
++		.not_found = ENODATA,
 +	};
 +	struct ext2_ext_attr_info i = {
 +		.name_index = EXT4_EXT_ATTR_INDEX_SYSTEM,
@@ -264,7 +258,9 @@ index fcf82b5..f7eea7d 100644
 +				   EXT2_GOOD_OLD_INODE_SIZE))
 +		return EXT2_ET_BAD_EXTRA_SIZE;
 +
-+	(void)ext2fs_ibody_find_ext_attr(fs, inode, &i, &s);
++	retval = ext2fs_ext_attr_ibody_find(fs, inode, &i, &s);
++	if (retval)
++		return retval;
 +
 +	if (!s.not_found) {
 +		data->inline_off = (__u16)((char *)s.here - (char *)inode);
@@ -286,7 +282,7 @@ index fcf82b5..f7eea7d 100644
 +	entry = (struct ext2_ext_attr_entry *)
 +			((char *)inode + data->inline_off);
 +
-+	return (void *) ((char *)IFIRST(header) + entry->e_value_offs);
++	return (void *) (IFIRST(header) + entry->e_value_offs);
 +}
 +
  int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino)
@@ -297,7 +293,7 @@ index fcf82b5..f7eea7d 100644
  	return (inode.i_flags & EXT4_INLINE_DATA_FL);
  }
 +
-+int ext2fs_inline_data_iterate(ext2_filsys fs,
++errcode_t ext2fs_inline_data_iterate(ext2_filsys fs,
 +			       ext2_ino_t ino,
 +			       int flags,
 +			       char *block_buf,
@@ -361,7 +357,7 @@ index fcf82b5..f7eea7d 100644
 +	if (retval & BLOCK_ABORT)
 +		goto out;
 +
-+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
++	retval = ext2fs_inline_data_find(fs, inode, &data);
 +	if (retval)
 +		goto out;
 +	if (data.inline_size > EXT4_MIN_INLINE_DATA_SIZE) {

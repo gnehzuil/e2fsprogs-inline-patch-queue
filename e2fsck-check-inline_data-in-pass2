@@ -2,14 +2,10 @@ e2fsck: check inline_data in pass2
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- e2fsck/pass2.c | 123 ++++++++++++++++++++++++++++++++++++++++++++-------------
- 1 file changed, 95 insertions(+), 28 deletions(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/e2fsck/pass2.c b/e2fsck/pass2.c
-index e28af61..fd48ca5 100644
+index 257589c..7b66099 100644
 --- a/e2fsck/pass2.c
 +++ b/e2fsck/pass2.c
 @@ -725,6 +725,15 @@ static void salvage_directory(ext2_filsys fs,
@@ -20,7 +16,7 @@ index e28af61..fd48ca5 100644
 +			 unsigned int offset, int csum_size)
 +{
 +	if (ext2fs_inode_has_inline_data(fs, ino))
-+		return (offset < ext2fs_get_inline_data_size(fs, ino));
++		return (offset < ext2fs_inline_data_get_size(fs, ino));
 +	else
 +		return (offset < fs->blocksize - csum_size);
 +}
@@ -179,9 +175,9 @@ index e28af61..fd48ca5 100644
 -			dirent->rec_len = cd->pctx.num;
 -			dir_modified++;
 +	if (inline_data) {
-+		if (offset != ext2fs_get_inline_data_size(fs, ino)) {
++		if (offset != ext2fs_inline_data_get_size(fs, ino)) {
 +			cd->pctx.num = rec_len + offset -
-+				ext2fs_get_inline_data_size(fs, ino);
++				ext2fs_inline_data_get_size(fs, ino);
 +			if (fix_problem(ctx, PR_2_FINAL_RECLEN, &cd->pctx)) {
 +				dirent->rec_len = cd->pctx.num;
 +				dir_modified++;
@@ -213,6 +209,3 @@ index e28af61..fd48ca5 100644
  		if (e2fsck_dir_will_be_rehashed(ctx, ino))
  			ctx->fs->flags &= ~EXT2_FLAG_IGNORE_CSUM_ERRORS;
  		if (cd->pctx.errcode) {
--- 
-1.7.12.rc0.22.gcdd159b
-

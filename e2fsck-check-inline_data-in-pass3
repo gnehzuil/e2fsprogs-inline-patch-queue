@@ -2,37 +2,40 @@ e2fsck: check inline_data in pass3
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
-Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- e2fsck/pass3.c  | 8 ++++++++
- e2fsck/rehash.c | 3 ++-
- 2 files changed, 10 insertions(+), 1 deletion(-)
+In e2fsck_expand_directory() we don't handle a dir with inline data
+because when this function is called the directory inode shouldn't
+contains inline data.
 
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/e2fsck/pass3.c b/e2fsck/pass3.c
-index a379e9b..85b3f65 100644
+index a379e9b..5052345 100644
 --- a/e2fsck/pass3.c
 +++ b/e2fsck/pass3.c
-@@ -787,6 +787,14 @@ errcode_t e2fsck_expand_directory(e2fsck_t ctx, ext2_ino_t dir,
+@@ -787,6 +787,18 @@ errcode_t e2fsck_expand_directory(e2fsck_t ctx, ext2_ino_t dir,
  	es.ctx = ctx;
  	es.dir = dir;
  
++	/*
++	 * 'lost+found' dir shouldn't contains inline data.  So we
++	 * need to clear this flag.
++	 */
 +	if (ext2fs_inode_has_inline_data(fs, dir)) {
-+		retval = ext2fs_convert_inline_data(fs, dir, &es);
++		retval = ext2fs_read_inode(fs, dir, &inode);
 +		if (retval)
 +			return retval;
-+
-+		return 0;
++		inode.i_flags &= ~EXT4_INLINE_DATA_FL;
++		e2fsck_write_inode(ctx, dir, &inode, "clear inline_data flag");
 +	}
 +
  	retval = ext2fs_block_iterate3(fs, dir, BLOCK_FLAG_APPEND,
  				       0, expand_dir_proc, &es);
  
 diff --git a/e2fsck/rehash.c b/e2fsck/rehash.c
-index 9cfb516..53145ba 100644
+index 5592e3f..82aeddd 100644
 --- a/e2fsck/rehash.c
 +++ b/e2fsck/rehash.c
-@@ -939,7 +939,8 @@ void e2fsck_rehash_directories(e2fsck_t ctx)
+@@ -937,7 +937,8 @@ void e2fsck_rehash_directories(e2fsck_t ctx)
  #if 0
  		fix_problem(ctx, PR_3A_OPTIMIZE_DIR, &pctx);
  #endif
@@ -42,6 +45,3 @@ index 9cfb516..53145ba 100644
  		if (pctx.errcode) {
  			end_problem_latch(ctx, PR_LATCH_OPTIMIZE_DIR);
  			fix_problem(ctx, PR_3A_OPTIMIZE_DIR_ERR, &pctx);
--- 
-1.7.12.rc0.22.gcdd159b
-

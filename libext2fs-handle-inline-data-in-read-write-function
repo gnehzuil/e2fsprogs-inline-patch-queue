@@ -6,7 +6,7 @@ Ext2fs_read/write_inline_data functions copy inline_data from/to
 user's buffer directly.  When we want to write some data to a file
 with inline_data, ext2fs_try_to_write_inline_data is called.  In this
 function, it firstly check the length of data.  If the data can be
-saved in innode, this function will create a new extend attribute to
+saved in inode, this function will create a new extend attribute to
 record information of inline_data, and copy all data into this inode.
 
 The following commands in debugfs can handle inline_data feature after
@@ -16,20 +16,13 @@ applying this patch:
 	- rdump
 	- write
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/ext2_err.et.in |   3 +
- lib/ext2fs/ext2fs.h       |   7 ++
- lib/ext2fs/fileio.c       |  19 ++++-
- lib/ext2fs/inline_data.c  | 177 ++++++++++++++++++++++++++++++++++++++++++++++
- 4 files changed, 205 insertions(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/ext2_err.et.in b/lib/ext2fs/ext2_err.et.in
-index a299561..8c30b48 100644
+index 8a19cab..9252692 100644
 --- a/lib/ext2fs/ext2_err.et.in
 +++ b/lib/ext2fs/ext2_err.et.in
-@@ -482,4 +482,7 @@ ec	EXT2_ET_FILE_EXISTS,
+@@ -485,4 +485,7 @@ ec	EXT2_ET_EXT_ATTR_CURRUPTED,
  ec	EXT2_ET_BAD_EXTRA_SIZE,
  	"Bad inode extra isizevalue"
  
@@ -38,13 +31,13 @@ index a299561..8c30b48 100644
 +
  	end
 diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
-index 9ee3925..a757058 100644
+index 934dbd0..2804748 100644
 --- a/lib/ext2fs/ext2fs.h
 +++ b/lib/ext2fs/ext2fs.h
-@@ -1364,6 +1364,13 @@ extern errcode_t ext2fs_inline_data_mkdir(ext2_filsys fs, ext2_ino_t parent,
- 					  ext2_ino_t ino);
- extern errcode_t ext2fs_convert_inline_data(ext2_filsys fs, ext2_ino_t ino,
- 					    void *priv_data);
+@@ -1359,6 +1359,13 @@ extern errcode_t ext2fs_inline_data_iterate(ext2_filsys fs,
+ extern errcode_t ext2fs_inline_data_create(ext2_filsys fs,
+ 					   struct ext2_inode_large *inode,
+ 					   unsigned int len);
 +extern errcode_t ext2fs_read_inline_data(ext2_filsys fs, ext2_ino_t ino,
 +					 char *buf);
 +extern errcode_t ext2fs_write_inline_data(ext2_filsys fs, ext2_ino_t ino,
@@ -56,7 +49,7 @@ index 9ee3925..a757058 100644
  /* inode.c */
  extern void ext2fs_free_inode_cache(struct ext2_inode_cache *icache);
 diff --git a/lib/ext2fs/fileio.c b/lib/ext2fs/fileio.c
-index 1f7002c..d751666 100644
+index 1f7002c..89c8ea6 100644
 --- a/lib/ext2fs/fileio.c
 +++ b/lib/ext2fs/fileio.c
 @@ -163,7 +163,8 @@ static errcode_t sync_buffer_position(ext2_file_t file)
@@ -64,7 +57,7 @@ index 1f7002c..d751666 100644
  	b = file->pos / file->fs->blocksize;
  	if (b != file->blockno) {
 -		retval = ext2fs_file_flush(file);
-+		if (!ext2fs_inode_has_inline_data(file->fs, file->ino))
++		if (!(file->inode.i_flags & EXT4_INLINE_DATA_FL))
 +			retval = ext2fs_file_flush(file);
  		if (retval)
  			return retval;
@@ -100,11 +93,11 @@ index 1f7002c..d751666 100644
  		retval = sync_buffer_position(file);
  		if (retval)
 diff --git a/lib/ext2fs/inline_data.c b/lib/ext2fs/inline_data.c
-index 2779b70..1cc214a 100644
+index c936e28..5ca95ee 100644
 --- a/lib/ext2fs/inline_data.c
 +++ b/lib/ext2fs/inline_data.c
-@@ -25,6 +25,8 @@ static int ext2fs_iget_extra_inode(ext2_filsys fs, struct ext2_inode_large *inod
- 				    struct inline_data *data);
+@@ -21,6 +21,8 @@
+ 
  static void *ext2fs_get_inline_xattr_pos(struct ext2_inode_large *inode,
  					 struct inline_data *data);
 +static unsigned int ext2fs_get_max_inline_size(ext2_filsys fs,
@@ -112,7 +105,7 @@ index 2779b70..1cc214a 100644
  static void ext2fs_inline_data_finish_convert(ext2_filsys fs, ext2_ino_t ino,
  					      char *target, char *buf,
  					      int inline_size);
-@@ -319,6 +321,73 @@ out:
+@@ -316,6 +318,74 @@ out:
  	return retval & BLOCK_ERROR ? ctx->errcode : 0;
  }
  
@@ -132,7 +125,7 @@ index 2779b70..1cc214a 100644
 +	if (retval)
 +		goto err;
 +
-+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
++	retval = ext2fs_inline_data_find(fs, inode, &data);
 +	if (retval)
 +		goto err;
 +
@@ -165,7 +158,7 @@ index 2779b70..1cc214a 100644
 +	if (retval)
 +		goto err;
 +
-+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
++	retval = ext2fs_inline_data_find(fs, inode, &data);
 +	if (retval)
 +		goto err;
 +
@@ -183,14 +176,14 @@ index 2779b70..1cc214a 100644
 +	ext2fs_free_mem(&inode);
 +	return retval;
 +}
- errcode_t ext2fs_convert_inline_data(ext2_filsys fs,
++
+ errcode_t ext2fs_inline_data_convert(ext2_filsys fs,
  				     ext2_ino_t  ino,
  				     void *priv_data)
-@@ -524,3 +593,111 @@ out:
- 	ext2fs_free_mem(&inode);
+@@ -430,6 +500,114 @@ out:
  	return retval;
  }
-+
+ 
 +static unsigned int ext2fs_get_max_inline_size(ext2_filsys fs,
 +					       struct ext2_inode_large *inode)
 +{
@@ -211,7 +204,7 @@ index 2779b70..1cc214a 100644
 +	for (; !EXT2_EXT_IS_LAST_ENTRY(entry);
 +	     entry = EXT2_EXT_ATTR_NEXT(entry)) {
 +		if (!entry->e_value_block && entry->e_value_size) {
-+			size_t offs = ext2fs_le16_to_cpu(entry->e_value_offs);
++			size_t offs = entry->e_value_offs;
 +			if (offs < min_offs)
 +				min_offs = offs;
 +		}
@@ -223,14 +216,14 @@ index 2779b70..1cc214a 100644
 +	 * We try to get inline data offset, but maybe it doesn't be
 +	 * created.  So we ignore this error.
 +	 */
-+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
++	retval = ext2fs_inline_data_find(fs, inode, &data);
 +	if (retval && retval != EXT2_ET_BAD_EXT_ATTR_MAGIC)
 +		return 0;
 +
 +	if (data.inline_off) {
 +		entry = (struct ext2_ext_attr_entry *)
 +			((char *)inode + data.inline_off);
-+		freesize += ext2fs_le32_to_cpu(entry->e_value_size);
++		freesize += entry->e_value_size;
 +		goto out;
 +	}
 +
@@ -267,11 +260,11 @@ index 2779b70..1cc214a 100644
 +		goto out;
 +	}
 +
-+	retval = ext2fs_create_inline_data(fs, inode, nbytes);
++	retval = ext2fs_inline_data_create(fs, inode, nbytes);
 +	if (retval)
 +		goto out;
 +
-+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
++	retval = ext2fs_inline_data_find(fs, inode, &data);
 +	if (retval)
 +		goto out;
 +
@@ -298,3 +291,15 @@ index 2779b70..1cc214a 100644
 +	ext2fs_free_mem(&inode);
 +	return retval;
 +}
++
+ errcode_t ext2fs_inline_data_create(ext2_filsys fs,
+ 				    struct ext2_inode_large *inode,
+ 				    unsigned int len)
+@@ -442,7 +620,6 @@ errcode_t ext2fs_inline_data_create(ext2_filsys fs,
+ 		.name_index = EXT4_EXT_ATTR_INDEX_SYSTEM,
+ 		.name = EXT4_EXT_ATTR_SYSTEM_DATA,
+ 	};
+-	void *buf;
+ 	errcode_t retval;
+ 
+ 	if (len > EXT4_MIN_INLINE_DATA_SIZE) {

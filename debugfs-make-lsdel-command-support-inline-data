@@ -2,12 +2,8 @@ debugfs: make lsdel command support inline data
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- debugfs/lsdel.c | 3 ++-
- 1 file changed, 2 insertions(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/debugfs/lsdel.c b/debugfs/lsdel.c
 index bed0ce6..71546c7 100644
 --- a/debugfs/lsdel.c
@@ -22,6 +18,3 @@ index bed0ce6..71546c7 100644
  			if (num_delarray >= max_delarray) {
  				max_delarray += 50;
  				delarray = realloc(delarray,
--- 
-1.7.12.rc0.22.gcdd159b
-

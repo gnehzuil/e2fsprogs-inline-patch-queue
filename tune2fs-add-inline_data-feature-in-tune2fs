@@ -7,8 +7,8 @@ feature only can be enabled because we may be out of space when disabling
 it.  If this feature is disabled, we need to allocate a block for every
 file and directory, and it might exhaust all space.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 ---
  misc/tune2fs.8.in |  5 +++++
  misc/tune2fs.c    | 17 ++++++++++++++++-

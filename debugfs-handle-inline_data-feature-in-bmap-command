@@ -2,15 +2,11 @@ debugfs: handle inline_data feature in bmap command
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-If an inode has inline data, bmap command will return the physical block of this
-inode.
+If an inode has inline data, bmap command will return the physical block
+of this inode.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/bmap.c | 15 +++++++++++++++
- 1 file changed, 15 insertions(+)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/bmap.c b/lib/ext2fs/bmap.c
 index aadd22e..408cd37 100644
 --- a/lib/ext2fs/bmap.c

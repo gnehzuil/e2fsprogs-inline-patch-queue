@@ -4,7 +4,8 @@ libext2fs-add-function-to-check-inline_data-flag-for-an-inode
 libext2fs-add-functions-to-operate-on-extended-attributes
 libext2fs-handle-inline-data-in-dir-iterator-function
 libext2fs-handle-inline_data-in-block-iterator-function
-debugfs-make-stat-command-support-inline-data
+debugfs-make-stat-cmd-support-inline-data
+debugfs-make-mkdir-expanddir-cmd-support-inline-data
 debugfs-make-lsdel-command-support-inline-data
 libext2fs-handle-inline-data-in-read-write-function
 debugfs-handle-inline_data-feature-in-dirsearch-command
@@ -19,5 +20,4 @@ e2fsck-check-inline_data-in-pass2
 e2fsck-check-inline_data-in-pass3
 tests-change-result-in-f_bad_disconnected_inode
 mke2fs-enable-inline_data-feature-on-ext4dev-filesystem
-disable-punch-for-inline-data
 libext2fs-add-a-unit-test-for-inline-data

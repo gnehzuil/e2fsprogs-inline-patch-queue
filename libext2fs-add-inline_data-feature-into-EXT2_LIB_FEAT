@@ -4,14 +4,10 @@ From: Zheng Liu <wenqing.lz@taobao.com>
 
 Let e2fsprogs support inline_data feature.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/ext2fs.h | 3 ++-
- 1 file changed, 2 insertions(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
-index 7d9c13a..1741ed7 100644
+index 2745e72..f185995 100644
 --- a/lib/ext2fs/ext2fs.h
 +++ b/lib/ext2fs/ext2fs.h
 @@ -588,7 +588,8 @@ typedef struct ext2_icount *ext2_icount_t;

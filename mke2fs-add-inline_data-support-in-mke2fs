@@ -2,15 +2,10 @@ mke2fs: add inline_data support in mke2fs
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-Ext_attr feature not enabled, inline_data feature doesn't be specified.
+Inline_data feature doesn't be specified without ext_attr.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- misc/mke2fs.8.in |  3 +++
- misc/mke2fs.c    | 14 +++++++++++++-
- 2 files changed, 16 insertions(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/misc/mke2fs.8.in b/misc/mke2fs.8.in
 index 023ba49..5731542 100644
 --- a/misc/mke2fs.8.in
@@ -26,7 +21,7 @@ index 023ba49..5731542 100644
  Filesystem can contain files that are greater than 2GB.  (Modern kernels
  set this feature automatically when a file > 2GB is created.)
 diff --git a/misc/mke2fs.c b/misc/mke2fs.c
-index bbf477a..60658d0 100644
+index a59d24c..cb084ea 100644
 --- a/misc/mke2fs.c
 +++ b/misc/mke2fs.c
 @@ -902,7 +902,8 @@ static __u32 ok_features[3] = {
@@ -57,6 +52,3 @@ index bbf477a..60658d0 100644
  	if (fs_param.s_blocks_per_group) {
  		if (fs_param.s_blocks_per_group < 256 ||
  		    fs_param.s_blocks_per_group > 8 * (unsigned) blocksize) {
--- 
-1.7.12.rc0.22.gcdd159b
-

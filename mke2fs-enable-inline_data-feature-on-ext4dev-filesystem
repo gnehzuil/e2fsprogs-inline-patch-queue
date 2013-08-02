@@ -2,12 +2,8 @@ mke2fs: enable inline_data feature on ext4dev filesystem
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- misc/mke2fs.conf.in | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/misc/mke2fs.conf.in b/misc/mke2fs.conf.in
 index 178733f..4c5dba7 100644
 --- a/misc/mke2fs.conf.in
@@ -21,6 +17,3 @@ index 178733f..4c5dba7 100644
  		inode_size = 256
  		options = test_fs=1
  	}
--- 
-1.7.12.rc0.22.gcdd159b
-

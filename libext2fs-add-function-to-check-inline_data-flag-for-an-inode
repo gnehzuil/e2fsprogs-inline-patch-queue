@@ -6,16 +6,8 @@ A new file called `inline_data.c' is created, and a function called
 `ext2fs_inode_has_inline_data' is defined to check whether an inode
 has inline data or not.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/Makefile.in   |  8 ++++++++
- lib/ext2fs/Makefile.pq   |  1 +
- lib/ext2fs/ext2fs.h      |  3 +++
- lib/ext2fs/inline_data.c | 31 +++++++++++++++++++++++++++++++
- 4 files changed, 43 insertions(+)
- create mode 100644 lib/ext2fs/inline_data.c
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/Makefile.in b/lib/ext2fs/Makefile.in
 index dc7b0d1..001c222 100644
 --- a/lib/ext2fs/Makefile.in
@@ -62,10 +54,10 @@ index 2f7b654..89082a7 100644
  	ismounted.obj \
  	link.obj \
 diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
-index cfb1672..7089e21 100644
+index 100270c..3346c00 100644
 --- a/lib/ext2fs/ext2fs.h
 +++ b/lib/ext2fs/ext2fs.h
-@@ -1331,6 +1331,9 @@ errcode_t ext2fs_icount_validate(ext2_icount_t icount, FILE *);
+@@ -1333,6 +1333,9 @@ errcode_t ext2fs_icount_validate(ext2_icount_t icount, FILE *);
  extern errcode_t ext2fs_get_memalign(unsigned long size,
  				     unsigned long align, void *ptr);
  
@@ -112,6 +104,3 @@ index 0000000..fcf82b5
 +
 +	return (inode.i_flags & EXT4_INLINE_DATA_FL);
 +}
--- 
-1.7.12.rc0.22.gcdd159b
-

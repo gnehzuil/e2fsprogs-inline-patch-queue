@@ -5,13 +5,8 @@ From: Zheng Liu <wenqing.lz@taobao.com>
 In this unit test, we will test manipulation of regular file and dir
 for inline data to make sure all tests pass.
 
-Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
----
- lib/ext2fs/Makefile.in   |   8 +-
- lib/ext2fs/inline_data.c | 295 +++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 302 insertions(+), 1 deletion(-)
-
+Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/Makefile.in b/lib/ext2fs/Makefile.in
 index 001c222..6b188b8 100644
 --- a/lib/ext2fs/Makefile.in
@@ -46,12 +41,12 @@ index 001c222..6b188b8 100644
  	LD_LIBRARY_PATH=$(LIB) DYLD_LIBRARY_PATH=$(LIB) \
  		./tst_bitmaps -f $(srcdir)/tst_bitmaps_cmds > tst_bitmaps_out
 diff --git a/lib/ext2fs/inline_data.c b/lib/ext2fs/inline_data.c
-index e9892e6..ea3736c 100644
+index 84a69ca..69df818 100644
 --- a/lib/ext2fs/inline_data.c
 +++ b/lib/ext2fs/inline_data.c
-@@ -900,3 +900,298 @@ out:
- 	ext2fs_free_mem(&inode);
- 	return retval;
+@@ -674,3 +674,297 @@ errcode_t ext2fs_inline_data_create(ext2_filsys fs,
+ 
+ 	return 0;
  }
 +
 +#ifdef DEBUG
@@ -120,7 +115,7 @@ index e9892e6..ea3736c 100644
 +		return 1;
 +	}
 +
-+	inline_size = ext2fs_get_inline_data_size(fs, newfile);
++	inline_size = ext2fs_inline_data_get_size(fs, newfile);
 +	if (inline_size != BUF_LEN) {
 +		printf("inline_data: the size of inline data is incorrect\n");
 +		return 1;
@@ -154,7 +149,7 @@ index e9892e6..ea3736c 100644
 +		return 1;
 +	}
 +
-+	retval = ext2fs_inline_data_header_check(fs, newfile);
++	retval = ext2fs_inline_data_check(fs, newfile);
 +	if (retval != 1) {
 +		printf("inline_data: header check failed\n");
 +		return 1;
@@ -170,36 +165,42 @@ index e9892e6..ea3736c 100644
 +
 +static errcode_t test_create_parent_dir(ext2_filsys fs, ext2_ino_t *ino)
 +{
++	const char *test_dir = "test";
 +	const char *dot = ".";
 +	errcode_t retval;
 +	ext2_ino_t dir, tmp;
 +
-+	retval = ext2fs_new_inode(fs, EXT2_ROOT_INO, LINUX_S_IFDIR | 0755,
-+				  0, &dir);
++	/* create a stub directory */
++	retval = ext2fs_mkdir(fs, 11, 11, "stub");
 +	if (retval) {
-+		com_err("test_create_parent_dir", retval,
-+			"while allocating a inode");
++		com_err("test_dir", retval, "while creating stub dir");
 +		return 1;
 +	}
 +
-+	retval = ext2fs_inline_data_mkdir(fs, EXT2_ROOT_INO, dir);
-+	if (retval) {
-+		com_err("test_create_parent_dir", retval,
-+			"while making test dir");
++	/* create a new empty directory with inline data */
++	retval = ext2fs_mkdir(fs, 11, 0, test_dir);
++	if (retval)
 +		return 1;
-+	}
 +
-+	ext2fs_inode_alloc_stats2(fs, dir, +1, 1);
-+
-+	retval = ext2fs_lookup(fs, dir, dot, strlen(dot), 0, &tmp);
++	/* lookup this new directory */
++	retval = ext2fs_lookup(fs, 11, test_dir,
++			       strlen(test_dir), 0, &dir);
 +	if (retval) {
 +		com_err("test_create_parent_dir", retval,
 +			"while looking up test dir");
 +		return 1;
 +	}
 +
++	/* lookup '.' in this new directory */
++	retval = ext2fs_lookup(fs, dir, dot, strlen(dot), 0, &tmp);
++	if (retval) {
++		com_err("test_create_parent_dir", retval,
++			"while looking up dot dir");
++		return 1;
++	}
++
 +	if (tmp != dir) {
-+		printf("inline_data: looking up '.' error\n");
++		fprintf(stderr, "inline_data: looking up '.' error\n");
 +		return 1;
 +	}
 +
@@ -210,7 +211,7 @@ index e9892e6..ea3736c 100644
 +static errcode_t test_manipulate_dirs(ext2_filsys fs, ext2_ino_t parent)
 +{
 +	errcode_t retval;
-+	ext2_ino_t dir = 12, tmp;
++	ext2_ino_t dir = 13, tmp;
 +	char name[PATH_MAX];
 +	int i;
 +
@@ -244,13 +245,6 @@ index e9892e6..ea3736c 100644
 +			return 1;
 +		}
 +
-+		retval = ext2fs_inline_data_dirsearch(fs, parent, name,
-+						      strlen(name));
-+		if (retval != 1) {
-+			printf("inline_data: dirsearch %s failed\n", name);
-+			return 1;
-+		}
-+
 +		dir++;
 +	}
 +
@@ -270,12 +264,12 @@ index e9892e6..ea3736c 100644
 +
 +	retval = ext2fs_expand_dir(fs, parent);
 +	if (retval) {
-+		com_err("test_manipulate_dirs", retval,
++		com_err("test_maniuplate_dirs", retval,
 +			"while expanding test dir");
 +		return 1;
 +	}
 +
-+	retval = ext2fs_inline_data_header_check(fs, parent);
++	retval = ext2fs_inline_data_check(fs, parent);
 +	if (retval != 1) {
 +		printf("inline_data: header check failed\n");
 +		return 1;
@@ -288,7 +282,7 @@ index e9892e6..ea3736c 100644
 + * Test manipulation of directory.
 + *
 + * In this test case, we first try to create a test dir.  Then we will try to
-+ * create, lookup, expand this dir and make sure all tests pass.
++ * create, lookup this dir and make sure all tests pass.
 + */
 +static errcode_t test_dir(ext2_filsys fs)
 +{
@@ -348,6 +342,3 @@ index e9892e6..ea3736c 100644
 +	return 0;
 +}
 +#endif
--- 
-1.7.12.rc0.22.gcdd159b
-
