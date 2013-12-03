@@ -8,26 +8,27 @@ data in stat command.
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
 Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/debugfs/debugfs.c b/debugfs/debugfs.c
-index 969dbe0..2837ee6 100644
+index e489f62..d1c81f1 100644
 --- a/debugfs/debugfs.c
 +++ b/debugfs/debugfs.c
-@@ -704,6 +704,15 @@ static void dump_extents(FILE *f, const char *prefix, ext2_ino_t ino,
+@@ -729,6 +729,16 @@ static void dump_extents(FILE *f, const char *prefix, ext2_ino_t ino,
  		fprintf(f, "\n");
  }
  
 +static void dump_inline_data(FILE *out, const char *prefix, ext2_ino_t inode_num)
 +{
-+	int size;
++	errcode_t retval;
++	size_t size;
 +
-+	fprintf(out, "%sINLINE DATA:\n %s", prefix, prefix);
-+	size = ext2fs_inline_data_get_size(current_fs, inode_num);
-+	fprintf(out, "  The size of inline data: %d", size);
++	retval = ext2fs_inline_data_size(current_fs, inode_num, &size);
++	if (!retval)
++		fprintf(out, "%sSize of inline data: %d", prefix, size);
 +}
 +
  void internal_dump_inode(FILE *out, const char *prefix,
  			 ext2_ino_t inode_num, struct ext2_inode *inode,
  			 int do_dump_blocks)
-@@ -837,6 +846,8 @@ void internal_dump_inode(FILE *out, const char *prefix,
+@@ -863,6 +873,8 @@ void internal_dump_inode(FILE *out, const char *prefix,
  		if (inode->i_flags & EXT4_EXTENTS_FL)
  			dump_extents(out, prefix, inode_num,
  				     DUMP_LEAF_EXTENTS|DUMP_NODE_EXTENTS, 0, 0);
@@ -36,53 +37,50 @@ index 969dbe0..2837ee6 100644
  		else
  			dump_blocks(out, prefix, inode_num);
  	}
-diff --git a/lib/ext2fs/ext2fs.h b/lib/ext2fs/ext2fs.h
-index 9d0d793..3883ffa 100644
---- a/lib/ext2fs/ext2fs.h
-+++ b/lib/ext2fs/ext2fs.h
-@@ -1348,6 +1348,7 @@ extern errcode_t ext2fs_get_memalign(unsigned long size,
+diff --git a/lib/ext2fs/ext2fsP.h b/lib/ext2fs/ext2fsP.h
+index 5ab6084..aae55b9 100644
+--- a/lib/ext2fs/ext2fsP.h
++++ b/lib/ext2fs/ext2fsP.h
+@@ -88,6 +88,8 @@ extern int ext2fs_process_dir_block(ext2_filsys  	fs,
+ 				    int			ref_offset,
+ 				    void		*priv_data);
  
- /* inline_data.c */
- extern int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino);
-+extern int ext2fs_inline_data_get_size(ext2_filsys fs, ext2_ino_t ino);
- extern errcode_t ext2fs_inline_data_iterate(ext2_filsys fs,
++extern errcode_t ext2fs_inline_data_size(ext2_filsys fs, ext2_ino_t ino,
++					 size_t *size);
+ extern errcode_t ext2fs_inline_data_dir_iterate(ext2_filsys fs,
  				      ext2_ino_t ino,
- 				      int flags,
+ 				      int (*func)(ext2_filsys fs,
 diff --git a/lib/ext2fs/inline_data.c b/lib/ext2fs/inline_data.c
-index 5534483..003b267 100644
+index 994435c..f84c1a2 100644
 --- a/lib/ext2fs/inline_data.c
 +++ b/lib/ext2fs/inline_data.c
-@@ -80,6 +80,33 @@ int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino)
- 	return (inode.i_flags & EXT4_INLINE_DATA_FL);
+@@ -78,6 +78,29 @@ err:
  }
  
-+int ext2fs_inline_data_get_size(ext2_filsys fs, ext2_ino_t ino)
+ 
++errcode_t ext2fs_inline_data_size(ext2_filsys fs, ext2_ino_t ino, size_t *size)
 +{
-+	struct ext2_inode_large *inode;
-+	struct inline_data data;
-+	errcode_t retval = 0;
-+	int size = 0;
++	struct ext2_inode inode;
++	struct ext2_inline_data data;
++	errcode_t retval;
 +
-+	retval = ext2fs_get_mem(EXT2_INODE_SIZE(fs->super), &inode);
++	retval = ext2fs_read_inode(fs, ino, &inode);
 +	if (retval)
-+		return 0;
-+	retval = ext2fs_read_inode_full(fs, ino, (void *)inode,
-+					EXT2_INODE_SIZE(fs->super));
++		return retval;
++
++	if (!(inode.i_flags & EXT4_INLINE_DATA_FL))
++		return EXT2_ET_NO_INLINE_DATA;
++
++	data.fs = fs;
++	data.ino = ino;
++	retval = ext2fs_inline_data_ea_get(&data);
 +	if (retval)
-+		goto out;
++		return retval;
 +
-+	if (inode->i_flags & EXT4_INLINE_DATA_FL) {
-+		retval = ext2fs_inline_data_find(fs, inode, &data);
-+		if (retval)
-+			goto out;
-+		size = data.inline_size;
-+	}
-+
-+out:
-+	ext2fs_free_mem(&inode);
-+	return size;
++	*size = EXT4_MIN_INLINE_DATA_SIZE + data.ea_size;
++	return ext2fs_free_mem(&data.ea_data);
 +}
 +
- errcode_t ext2fs_inline_data_iterate(ext2_filsys fs,
+ errcode_t ext2fs_inline_data_dir_iterate(ext2_filsys fs,
  			       ext2_ino_t ino,
- 			       int flags,
+ 			       int (*func)(ext2_filsys fs,

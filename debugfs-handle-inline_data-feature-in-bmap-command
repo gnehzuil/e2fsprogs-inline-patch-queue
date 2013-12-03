@@ -2,33 +2,24 @@ debugfs: handle inline_data feature in bmap command
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-If an inode has inline data, bmap command will return the physical block
-of this inode.
+No physical block mapping if an inode has inline data.
 
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
 Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/lib/ext2fs/bmap.c b/lib/ext2fs/bmap.c
-index aadd22e..408cd37 100644
+index 5074587..0d043bd 100644
 --- a/lib/ext2fs/bmap.c
 +++ b/lib/ext2fs/bmap.c
-@@ -264,6 +264,21 @@ errcode_t ext2fs_bmap2(ext2_filsys fs, ext2_ino_t ino, struct ext2_inode *inode,
+@@ -273,6 +273,13 @@ errcode_t ext2fs_bmap2(ext2_filsys fs, ext2_ino_t ino, struct ext2_inode *inode,
  		block_buf = buf;
  	}
  
-+	if (inode->i_flags & EXT4_INLINE_DATA_FL) {
-+		unsigned long group, pblock, offset;
-+
-+		group = (ino - 1) / EXT2_INODES_PER_GROUP(fs->super);
-+		if (group > fs->group_desc_count)
-+			return EXT2_ET_BAD_INODE_NUM;
-+		offset = ((ino - 1) % EXT2_INODES_PER_GROUP(fs->super)) *
-+			 EXT2_INODE_SIZE(fs->super);
-+		pblock = offset >> EXT2_BLOCK_SIZE_BITS(fs->super);
-+		if (!ext2fs_inode_table_loc(fs, (unsigned) group))
-+			return EXT2_ET_MISSING_INODE_TABLE;
-+		*phys_blk = ext2fs_inode_table_loc(fs, group) + pblock;
++	/*
++	 * If an inode has inline data, that means that it doesn't have
++	 * any blocks and we shouldn't map any blocks for it.
++	 */
++	if (inode->i_flags & EXT4_INLINE_DATA_FL)
 +		goto done;
-+	}
 +
  	if (inode->i_flags & EXT4_EXTENTS_FL) {
  		retval = ext2fs_extent_open2(fs, ino, inode, &handle);

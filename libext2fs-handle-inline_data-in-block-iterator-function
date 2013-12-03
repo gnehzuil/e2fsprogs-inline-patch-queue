@@ -2,34 +2,93 @@ libext2fs: handle inline_data in block iterator function
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
-We needn't traverse blocks for an inode which has inline data because no
-block belongs to it.  After applied this patch, the following commands
-in debugfs can handle inline_data feature:
-	- icheck
-	- blocks
-	- filefrag
+After applied this commit (a7f4c635), we have banned to traverse blocks
+for an inode which has inline data because no block belongs to it.  But
+before calling this function, we need to check inline data flag.  This
+commit add a sanity check ext2fs_inode_has_valid_blocks2() to fix them
+except that ext2fs_expand_dir because it will be fixed by another patch.
 
-In some places, block iterator functions are used to traverse blocks of
-directory.  In this case, we need to check whether inode has inline_data
-flag or not, and handle it manually.
-
-Signed-off-by: Theodore Ts'o <tytso@mit.edu>
 Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
-diff --git a/lib/ext2fs/block.c b/lib/ext2fs/block.c
-index b8c6879..b194ca8 100644
---- a/lib/ext2fs/block.c
-+++ b/lib/ext2fs/block.c
-@@ -345,6 +345,13 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
- 		return ctx.errcode;
+diff --git a/debugfs/filefrag.c b/debugfs/filefrag.c
+index e82d133..7a82e8d 100644
+--- a/debugfs/filefrag.c
++++ b/debugfs/filefrag.c
+@@ -154,11 +154,13 @@ static void filefrag(ext2_ino_t ino, struct ext2_inode *inode,
+ 			fs->name, num_blocks, EXT2_I_SIZE(inode));
+ 	}
+ 	print_header(fs);
+-	retval = ext2fs_block_iterate3(current_fs, ino,
+-				       BLOCK_FLAG_READ_ONLY, NULL,
+-				       filefrag_blocks_proc, fs);
+-	if (retval)
+-		com_err("ext2fs_block_iterate3", retval, 0);
++	if (ext2fs_inode_has_valid_blocks2(current_fs, inode)) {
++		retval = ext2fs_block_iterate3(current_fs, ino,
++					       BLOCK_FLAG_READ_ONLY, NULL,
++					       filefrag_blocks_proc, fs);
++		if (retval)
++			com_err("ext2fs_block_iterate3", retval, 0);
++	}
  
- 	/*
-+	 * If an inode has inline data, we needn't traverse its blocks
-+	 * because no block belong to this inode.
-+	 */
-+	if (inode.i_flags & EXT4_INLINE_DATA_FL)
-+		return ctx.errcode;
+ 	report_filefrag(fs);
+ 	fprintf(fs->f, "%s: %d contiguous extents%s\n", fs->name, fs->ext,
+diff --git a/debugfs/lsdel.c b/debugfs/lsdel.c
+index bed0ce6..ba84611 100644
+--- a/debugfs/lsdel.c
++++ b/debugfs/lsdel.c
+@@ -141,13 +141,16 @@ void do_lsdel(int argc, char **argv)
+ 		lsd.free_blocks = 0;
+ 		lsd.bad_blocks = 0;
+ 
+-		retval = ext2fs_block_iterate3(current_fs, ino,
+-					       BLOCK_FLAG_READ_ONLY, block_buf,
+-					       lsdel_proc, &lsd);
+-		if (retval) {
+-			com_err("ls_deleted_inodes", retval,
+-				"while calling ext2fs_block_iterate2");
+-			goto next;
++		if (ext2fs_inode_has_valid_blocks2(current_fs, &inode)) {
++			retval = ext2fs_block_iterate3(current_fs, ino,
++						       BLOCK_FLAG_READ_ONLY,
++						       block_buf,
++						       lsdel_proc, &lsd);
++			if (retval) {
++				com_err("ls_deleted_inodes", retval,
++					"while calling ext2fs_block_iterate2");
++				goto next;
++			}
+ 		}
+ 		if (lsd.free_blocks && !lsd.bad_blocks) {
+ 			if (num_delarray >= max_delarray) {
+diff --git a/lib/ext2fs/valid_blk.c b/lib/ext2fs/valid_blk.c
+index 895e36e..db5d90a 100644
+--- a/lib/ext2fs/valid_blk.c
++++ b/lib/ext2fs/valid_blk.c
+@@ -52,6 +52,13 @@ int ext2fs_inode_has_valid_blocks2(ext2_filsys fs, struct ext2_inode *inode)
+ 			return 0; /* Probably a fast symlink */
+ 		}
+ 	}
 +
 +	/*
- 	 * Check to see if we need to limit large files
- 	 */
- 	if (flags & BLOCK_FLAG_NO_LARGE) {
++	 * If this inode has inline data, it shouldn't have valid block
++	 * entries.
++	 */
++	if (inode->i_flags & EXT4_INLINE_DATA_FL)
++		return 0;
+ 	return 1;
+ }
+ 
+diff --git a/misc/tune2fs.c b/misc/tune2fs.c
+index 1ae0ee6..95c1886 100644
+--- a/misc/tune2fs.c
++++ b/misc/tune2fs.c
+@@ -688,7 +688,8 @@ static void rewrite_inodes(ext2_filsys fs)
+ 			exit(1);
+ 		}
+ 
+-		if (LINUX_S_ISDIR(inode->i_mode)) {
++		if (LINUX_S_ISDIR(inode->i_mode) &&
++		    ext2fs_inode_has_valid_blocks2(fs, inode)) {
+ 			retval = rewrite_directory(fs, ino, inode);
+ 			if (retval) {
+ 				com_err("rewrite_directory", retval,

@@ -2,15 +2,19 @@ debugfs: make lsdel command support inline data
 
 From: Zheng Liu <wenqing.lz@taobao.com>
 
+After checking inline data in ext2fs_inode_have_valid_blocks2() we won't
+traverse the block in do_lsdel() function.  But if an inode has inline
+data we also need to report it.
+
 Signed-off-by: Theodore Ts'o <tytso@mit.edu>
 Signed-off-by: Zheng Liu <wenqing.lz@taobao.com>
 diff --git a/debugfs/lsdel.c b/debugfs/lsdel.c
-index bed0ce6..71546c7 100644
+index ba84611..b61951f 100644
 --- a/debugfs/lsdel.c
 +++ b/debugfs/lsdel.c
-@@ -149,7 +149,8 @@ void do_lsdel(int argc, char **argv)
- 				"while calling ext2fs_block_iterate2");
- 			goto next;
+@@ -152,7 +152,8 @@ void do_lsdel(int argc, char **argv)
+ 				goto next;
+ 			}
  		}
 -		if (lsd.free_blocks && !lsd.bad_blocks) {
 +		if (lsd.free_blocks && !lsd.bad_blocks ||
